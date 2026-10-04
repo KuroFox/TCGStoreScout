@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1018">
+<title>TCG Store Scout</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><div class="logo">TS</div><div><h1>TCG Store Scout</h1><p>Fuente de mercado: TCGplayer</p></div></div>
+    <button class="icon" id="settingsBtn" aria-label="Configuración">⚙️</button>
+  </header>
+
+  <div id="sourceStatus" class="status">Comprobando snapshot TCGplayer…</div>
+
+  <section id="searchSection" class="section active">
+    <div class="card hero">
+      <h2>Valora cartas para compra y reventa</h2>
+      <p>Busca por nombre o código, elige la impresión exacta y calcula una oferta objetivo usando el precio de mercado TCGplayer.</p>
+      <label class="capture">
+        <span class="cameraIcon">📷</span><strong>Escanear carta</strong>
+        <small>Foto → OCR → búsqueda en el catálogo TCGplayer</small>
+        <input id="cameraInput" type="file" accept="image/*" capture="environment">
+      </label>
+      <div id="photoPanel" class="photoPanel hidden">
+        <img id="photoPreview" alt="Vista previa">
+        <div class="actions"><button class="btn secondary" id="changePhotoBtn">Cambiar</button><button class="btn primary" id="ocrBtn">Leer carta</button></div>
+        <div id="ocrStatus" class="help"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="searchRow"><input id="queryInput" type="search" placeholder="Alphamon, BT6-111, Charizard…"><button class="btn primary" id="searchBtn">Buscar</button></div>
+      <div class="filters">
+        <select id="gameSelect"><option value="all">Todos los juegos</option></select>
+        <select id="limitSelect"><option value="20">20 resultados</option><option value="40">40 resultados</option><option value="80">80 resultados</option></select>
+      </div>
+      <div id="searchInfo" class="help">El catálogo se cargará desde el último snapshot publicado.</div>
+      <div id="results" class="results"></div>
+    </div>
+
+    <div id="detailCard" class="card hidden">
+      <div class="detailTop">
+        <img id="cardImage" class="cardImage" alt="">
+        <div>
+          <h3 id="cardName"></h3>
+          <p id="cardGame"></p>
+          <p id="cardSet"></p>
+          <p id="cardCode"></p>
+          <a id="tcgplayerLink" class="tcgLink" target="_blank" rel="noopener">Abrir en TCGplayer ↗</a>
+        </div>
+      </div>
+
+      <div class="fieldBlock">
+        <label>Impresión / variante</label>
+        <select id="variantSelect"></select>
+      </div>
+      <div class="fieldBlock">
+        <label>Condición física — ajuste estimado de la tienda</label>
+        <select id="conditionSelect">
+          <option value="NM">Near Mint (NM)</option>
+          <option value="LP">Lightly Played (LP)</option>
+          <option value="MP">Moderately Played (MP)</option>
+          <option value="HP">Heavily Played (HP)</option>
+          <option value="DMG">Damaged</option>
+        </select>
+      </div>
+
+      <div class="market">
+        <small>Valor base para cálculo</small>
+        <div id="marketPen" class="marketBig">—</div>
+        <div id="marketUsd" class="muted"></div>
+        <div id="priceBasis" class="basis"></div>
+      </div>
+
+      <div class="metrics">
+        <div class="metric"><span>Market</span><strong id="pMarket">—</strong></div>
+        <div class="metric"><span>Low</span><strong id="pLow">—</strong></div>
+        <div class="metric"><span>Mid</span><strong id="pMid">—</strong></div>
+        <div class="metric"><span>High</span><strong id="pHigh">—</strong></div>
+        <div class="metric"><span>Direct Low</span><strong id="pDirect">—</strong></div>
+        <div class="metric"><span>Histórico local</span><strong id="trendLocal">—</strong></div>
+      </div>
+
+      <div class="offer">
+        <small>Oferta ideal de compra</small>
+        <div id="idealOffer" class="offerBig">—</div>
+        <div class="offerRow"><span>Máximo recomendable</span><b id="maxOffer">—</b></div>
+        <div class="offerRow"><span>Ganancia estimada</span><b id="profit">—</b></div>
+        <div class="offerRow"><span>ROI estimado</span><b id="roi">—</b></div>
+      </div>
+
+      <div class="sourceNote"><b>TCGplayer:</b> Market/Low/Mid/High/Direct Low e impresión. <b>Estimación propia:</b> ajuste por condición, comisiones, riesgo, margen y oferta.</div>
+      <div class="actions"><button class="btn secondary" id="recalcBtn">Recalcular</button><button class="btn primary" id="addLotBtn">+ Añadir al lote</button></div>
+    </div>
+  </section>
+
+  <section id="lotSection" class="section">
+    <div class="card"><h2>Lote de compra</h2><div id="lotList" class="empty">No hay cartas añadidas.</div>
+      <div id="lotTotals" class="totals hidden"><div class="total"><span>Mercado ajustado</span><strong id="lotMarket">—</strong></div><div class="total"><span>Oferta ideal</span><strong id="lotOffer">—</strong></div></div>
+      <div class="actions"><button class="btn secondary" id="clearLotBtn">Vaciar</button><button class="btn primary" id="shareLotBtn">Compartir</button></div>
+    </div>
+  </section>
+
+  <section id="statusSection" class="section">
+    <div class="card"><h2>Estado del mercado</h2><div id="diagnostics" class="diagnostics">Esperando snapshot…</div><button class="btn secondary full" id="refreshStatusBtn">Actualizar estado</button></div>
+  </section>
+</div>
+
+<nav class="bottom">
+  <button class="navBtn active" data-target="searchSection">📷<br>Buscar</button>
+  <button class="navBtn" data-target="lotSection">📚<br>Lote</button>
+  <button class="navBtn" data-target="statusSection">ℹ️<br>Estado</button>
+</nav>
+
+<div id="settingsModal" class="modal">
+  <div class="sheet">
+    <div class="sheetHead"><h3>Configuración de compra</h3><button class="icon" id="closeSettingsBtn">✕</button></div>
+    <div class="settingsGrid">
+      <label>USD → PEN<input id="fxInput" type="number" step="0.01"></label>
+      <label>Comisiones %<input id="feesInput" type="number" step="0.1"></label>
+      <label>Margen deseado %<input id="marginInput" type="number" step="0.1"></label>
+      <label>Buffer de riesgo %<input id="riskInput" type="number" step="0.1"></label>
+      <label>Costo fijo S/<input id="fixedInput" type="number" step="0.1"></label>
+      <label>Oferta ideal / máximo %<input id="idealPctInput" type="number" step="0.1"></label>
+    </div>
+    <p class="help">Los factores de condición son estimaciones configuradas por la tienda: NM 100%, LP 85%, MP 70%, HP 55%, Damaged 35%.</p>
+    <button class="btn primary full" id="saveSettingsBtn">Guardar</button>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
