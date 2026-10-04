@@ -26,10 +26,10 @@ if missing:
     fail(f"missing DOM ids: {missing}")
 
 # 3) Cache busting is mandatory on GitHub Pages.
-if "app.js?v=2.4.0" not in html:
-    fail("app.js is not versioned to 2.4.0")
-if "style.css?v=2.4.0" not in html:
-    fail("style.css is not versioned to 2.4.0")
+if "app.js?v=2.4.1" not in html:
+    fail("app.js is not versioned to 2.4.1")
+if "style.css?v=2.4.1" not in html:
+    fail("style.css is not versioned to 2.4.1")
 if "no-cache, no-store" not in html:
     fail("no-cache meta is missing")
 
