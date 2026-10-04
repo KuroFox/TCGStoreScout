@@ -26,10 +26,10 @@ if missing:
     fail(f"missing DOM ids: {missing}")
 
 # 3) Cache busting is mandatory on GitHub Pages.
-if "app.js?v=2.3.2" not in html:
-    fail("app.js is not versioned to 2.3.2")
-if "style.css?v=2.3.2" not in html:
-    fail("style.css is not versioned to 2.3.2")
+if "app.js?v=2.4.0" not in html:
+    fail("app.js is not versioned to 2.4.0")
+if "style.css?v=2.4.0" not in html:
+    fail("style.css is not versioned to 2.4.0")
 if "no-cache, no-store" not in html:
     fail("no-cache meta is missing")
 
@@ -47,7 +47,15 @@ for marker in required:
 if "Analizando…" in re.search(r'id="trendLabel"[^>]*>(.*?)</div>', html, re.S).group(1):
     fail("trend HTML must not boot in an endless analyzing state")
 
-# 5) Scanner regression guards.
+# 5) Weekly meta regression guards.
+for marker in ["metaSection", "metaDecksList", "metaCardsList", "metaDecklists", "metaEvents"]:
+    if f'id="{marker}"' not in html:
+        fail(f"weekly meta DOM marker missing: {marker}")
+for marker in ["loadWeeklyMeta", "weekly.json", "renderWeeklyMeta", "data-meta-q", "copiesPer100Decks"]:
+    if marker not in js:
+        fail(f"weekly meta JS marker missing: {marker}")
+
+# 6) Scanner regression guards.
 for marker in ["Lectura del nombre", "Lectura del código", "Búsqueda de candidatos", 'btn.textContent="Identificar carta"']:
     if marker not in js:
         fail(f"scanner regression marker missing: {marker}")
