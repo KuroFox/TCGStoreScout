@@ -20,3 +20,20 @@
 .trendExplanation{margin-top:9px;padding:10px;border-radius:11px;background:#111b27;color:#c8d3e3;font-size:10px;line-height:1.45}
 .offerAdjustment{color:#a9b6c8;font-size:10px;line-height:1.4;margin:3px 0 2px}
 @media(max-width:430px){.scanPreviewGrid{grid-template-columns:1fr}.scanPreviewGrid img,.scanPreviewGrid canvas{height:210px}.trendMetrics{grid-template-columns:1fr 1fr}}
+
+
+.competitivePanel{margin-top:13px;padding:13px;border-radius:15px;border:1px solid #2e415b;background:#0a111a}
+.competitiveHead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.competitiveLabel{font-size:22px;font-weight:950;margin-top:3px}
+.scoreCircle{min-width:54px;height:54px;border-radius:50%;display:grid;place-items:center;border:2px solid #46627f;background:#101a28;font-size:16px;font-weight:950}
+.competitiveMetrics{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px}
+.competitiveMetrics>div{padding:9px;background:#0c151f;border:1px solid #202d40;border-radius:11px}
+.competitiveMetrics span{display:block;color:var(--muted);font-size:8px;text-transform:uppercase}
+.competitiveMetrics strong{display:block;margin-top:3px;font-size:12px}
+.deckChips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.deckChip{padding:5px 7px;border-radius:999px;background:#172235;border:1px solid #2c3c55;color:#d6dfed;font-size:9px}
+.microSource{margin-top:7px;color:var(--muted);font-size:9px;line-height:1.35}
+.dealRow{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.08)}
+.dealRow strong{display:block;font-size:16px;margin-top:2px}
+.dealScore{font-size:28px;font-weight:950}
+@media(max-width:430px){.competitiveMetrics{grid-template-columns:1fr 1fr}}
