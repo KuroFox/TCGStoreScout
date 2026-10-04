@@ -1,6 +1,6 @@
 const GAMES={"1":"Magic: The Gathering","2":"Yu-Gi-Oh!","3":"Pokémon","63":"Digimon Card Game","68":"One Piece Card Game","71":"Disney Lorcana"};
 const DEFAULTS={fx:3.75,fees:12,margin:25,risk:6,fixed:2,idealPct:90,cond:{NM:100,LP:85,MP:70,HP:55,DMG:35}};
-const state={status:null,current:null,currentCat:null,lot:[],photo:null,scanCanvas:null,settings:Object.assign({},DEFAULTS),trend:null,competitive:null};
+const state={status:null,current:null,currentCat:null,lot:[],photo:null,scanCanvas:null,settings:Object.assign({},DEFAULTS),trend:null,competitive:null,weeklyMeta:null,metaLoading:false};
 const $=id=>document.getElementById(id);
 function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function norm(v){return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/&/g," and ").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");}
@@ -14,7 +14,7 @@ function loadLocal(){try{const s=JSON.parse(localStorage.getItem("tcgScoutSettin
 function persist(){localStorage.setItem("tcgScoutSettings",JSON.stringify(state.settings));localStorage.setItem("tcgScoutLot",JSON.stringify(state.lot));}
 function syncSettings(){$("fxInput").value=state.settings.fx;$("feesInput").value=state.settings.fees;$("marginInput").value=state.settings.margin;$("riskInput").value=state.settings.risk;$("fixedInput").value=state.settings.fixed;$("idealPctInput").value=state.settings.idealPct;}
 function saveSettings(){state.settings.fx=Number($("fxInput").value)||3.75;state.settings.fees=Number($("feesInput").value)||0;state.settings.margin=Number($("marginInput").value)||0;state.settings.risk=Number($("riskInput").value)||0;state.settings.fixed=Number($("fixedInput").value)||0;state.settings.idealPct=Number($("idealPctInput").value)||90;persist();$("settingsModal").classList.remove("open");renderCurrent();toast("Configuración guardada");}
-function switchSection(id){document.querySelectorAll(".section").forEach(x=>x.classList.toggle("active",x.id===id));document.querySelectorAll(".navBtn").forEach(x=>x.classList.toggle("active",x.dataset.target===id));window.scrollTo({top:0,behavior:"smooth"});}
+function switchSection(id){document.querySelectorAll(".section").forEach(x=>x.classList.toggle("active",x.id===id));document.querySelectorAll(".navBtn").forEach(x=>x.classList.toggle("active",x.dataset.target===id));window.scrollTo({top:0,behavior:"smooth"});if(id==="metaSection")loadWeeklyMeta(false);}
 function gameOptions(){const sel=$("gameSelect"),current=sel.value||"all";sel.innerHTML='<option value="all">Todos los juegos disponibles</option>';const available=state.status&&state.status.games?state.status.games:{};Object.keys(GAMES).forEach(id=>{const g=available[id],o=document.createElement("option");o.value=id;o.textContent=GAMES[id]+(g&&g.products===0?" — sin datos":"");o.disabled=!!(g&&g.products===0);sel.appendChild(o);});sel.value=[...sel.options].some(o=>o.value===current&&!o.disabled)?current:"all";}
 async function loadStatus(showToast){const box=$("sourceStatus"),diag=$("diagnostics");try{const r=await fetch("data/status.json?v="+Date.now(),{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);const s=await r.json();state.status=s;const d=new Date(s.builtAt);box.className="status ok";box.innerHTML="<b>TCGplayer activo</b> · snapshot "+d.toLocaleString("es-PE");let lines=["<b>Construido:</b> "+d.toLocaleString("es-PE")];Object.keys(s.games||{}).forEach(id=>{const g=s.games[id];lines.push("<b>"+esc(g.name)+"</b>: "+Number(g.products||0).toLocaleString()+" productos · "+Number(g.pricedProducts||0).toLocaleString()+" con precio · "+Number(g.failedGroups||0)+" sets con fallo");});try{const cr=await fetch("data/competitive/pokemon/status.json?v="+Date.now(),{cache:"no-store"});if(cr.ok){const cs=await cr.json();lines.push("<br><b>Pokémon competitivo:</b> "+Number(cs.decklistsAnalyzed||0).toLocaleString()+" decklists · "+Number(cs.eventsAnalyzed||0)+" torneos · ventana "+Number(cs.windowDays||0)+" días");}}catch(e){}diag.innerHTML=lines.join("<br>");gameOptions();if(showToast)toast("Snapshot actualizado");}catch(e){box.className="status bad";box.innerHTML="<b>Datos TCGplayer no disponibles:</b> "+esc(e.message);diag.textContent="No se pudo cargar data/status.json. Revisa el workflow de GitHub Pages.";gameOptions();}}
 async function fetchShard(cat,type,key){const url="data/tcgplayer/"+cat+"/"+type+"/"+key+".json";const r=await fetch(url,{cache:"force-cache"});if(r.status===404)return[];if(!r.ok)throw new Error("HTTP "+r.status+" en "+url);return r.json();}
@@ -81,5 +81,57 @@ setStatus("✓ Identificación terminada. Encontré "+arr.length+" candidata(s);
 $("results").scrollIntoView({behavior:"smooth",block:"start"});
 }catch(e){setStatus("✕ "+(e&&e.message?e.message:"Falló el reconocimiento")+". Puedes reintentar o buscar por nombre/código.");}
 finally{if(worker){try{await Promise.race([worker.terminate(),new Promise(r=>setTimeout(r,1500))]);}catch(e){}}btn.disabled=false;btn.textContent="Identificar carta";}}
+
+function metaTrendMarkup(v){const n=Number(v)||0,cls=n>1?"metaTrendUp":n<-1?"metaTrendDown":"metaTrendFlat",arrow=n>1?"↑":n<-1?"↓":"→";return '<span class="'+cls+'">'+arrow+' '+(n>0?"+":"")+n.toFixed(1)+' pp</span>';}
+async function loadWeeklyMeta(force=false){
+  if(state.weeklyMeta&&!force){renderWeeklyMeta(state.weeklyMeta);return;}
+  if(state.metaLoading)return;
+  state.metaLoading=true;
+  $("metaDecksList").innerHTML='<div class="spin"></div>';
+  $("metaCardsList").innerHTML='<div class="spin"></div>';
+  $("metaUpdated").textContent="Actualizando radar semanal…";
+  try{
+    const r=await fetch("data/competitive/pokemon/weekly.json?v="+Date.now(),{cache:"no-store"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const m=await r.json();
+    state.weeklyMeta=m;
+    renderWeeklyMeta(m);
+  }catch(e){
+    $("metaUpdated").textContent="No pude cargar el radar semanal: "+e.message;
+    $("metaDecksList").innerHTML='<div class="empty">Meta semanal no disponible todavía.</div>';
+    $("metaCardsList").innerHTML='<div class="empty">Ranking semanal no disponible todavía.</div>';
+  }finally{state.metaLoading=false;}
+}
+function renderWeeklyMeta(m){
+  const d=new Date(m.builtAt||Date.now());
+  $("metaUpdated").textContent="Actualizado "+d.toLocaleString("es-PE")+" · "+esc(m.source||"Limitless");
+  $("metaDecklists").textContent=Number(m.decklistsAnalyzed||0).toLocaleString();
+  $("metaEvents").textContent=Number(m.eventsAnalyzed||0).toLocaleString();
+
+  const decks=Array.isArray(m.topDecks)?m.topDecks:[];
+  $("metaDecksList").innerHTML=decks.length?decks.slice(0,12).map((x,i)=>
+    '<div class="metaItem"><div class="metaRank">#'+(i+1)+'</div><div><h4>'+esc(x.name)+'</h4>'+
+    '<div class="metaSub">'+Number(x.decks||0)+' listas · '+Number(x.events||0)+' torneos · mejor puesto '+(x.best||"—")+'</div>'+
+    '<div class="metaBadges"><span class="metaBadge">Meta '+Number(x.share||0).toFixed(1)+'%</span><span class="metaBadge">Win '+Number(x.winRate||0).toFixed(1)+'%</span><span class="metaBadge">Top 8 '+Number(x.top8||0)+'</span><span class="metaBadge">'+metaTrendMarkup(x.trendPP)+'</span></div></div></div>'
+  ).join(""):'<div class="empty">No hay suficientes decklists de esta semana.</div>';
+
+  const cards=Array.isArray(m.topCards)?m.topCards:[];
+  $("metaCardsList").innerHTML=cards.length?cards.slice(0,25).map((x,i)=>{
+    const code=[x.set,x.number].filter(Boolean).join(" ");
+    const q=(x.name+" "+(x.number||"")).trim();
+    const arches=(x.archetypes||[]).slice(0,2).map(a=>a.name).join(" · ");
+    return '<div class="metaItem"><div class="metaRank">#'+(i+1)+'</div><div><h4>'+esc(x.name)+'</h4>'+
+      '<div class="metaSub">'+esc(code)+(arches?' · '+esc(arches):'')+'</div>'+
+      '<div class="metaBadges"><span class="metaBadge">Uso '+Number(x.usage||0).toFixed(1)+'%</span><span class="metaBadge">'+Number(x.avgCopies||0).toFixed(1)+' copias/mazo</span><span class="metaBadge">'+Number(x.copiesPer100Decks||0).toFixed(0)+' copias / 100 decks</span><span class="metaBadge">'+metaTrendMarkup(x.trendPP)+'</span></div></div>'+
+      '<button class="metaAnalyze" data-meta-q="'+esc(q)+'">Analizar</button></div>';
+  }).join(""):'<div class="empty">No hay suficientes cartas para construir el ranking semanal.</div>';
+  document.querySelectorAll("[data-meta-q]").forEach(b=>b.addEventListener("click",()=>{
+    $("gameSelect").value="3";
+    $("queryInput").value=b.dataset.metaQ||"";
+    switchSection("searchSection");
+    searchCards();
+  }));
+}
+
 $("searchBtn").addEventListener("click",searchCards);$("queryInput").addEventListener("keydown",e=>{if(e.key==="Enter")searchCards();});$("variantSelect").addEventListener("change",()=>{state.trend=null;renderCurrent();loadTrendForCurrent();});$("conditionSelect").addEventListener("change",renderCurrent);$("recalcBtn").addEventListener("click",renderCurrent);$("addLotBtn").addEventListener("click",addLot);$("cameraInput").addEventListener("change",photoChanged);$("changePhotoBtn").addEventListener("click",resetPhoto);$("ocrBtn").addEventListener("click",runOCR);$("clearLotBtn").addEventListener("click",clearLot);$("shareLotBtn").addEventListener("click",shareLot);$("refreshStatusBtn").addEventListener("click",()=>loadStatus(true));$("settingsBtn").addEventListener("click",()=>{$("settingsModal").classList.add("open");syncSettings();});$("closeSettingsBtn").addEventListener("click",()=>$("settingsModal").classList.remove("open"));$("saveSettingsBtn").addEventListener("click",saveSettings);$("settingsModal").addEventListener("click",e=>{if(e.target.id==="settingsModal")$("settingsModal").classList.remove("open");});document.querySelectorAll(".navBtn").forEach(b=>b.addEventListener("click",()=>switchSection(b.dataset.target)));
 loadLocal();renderTrend(null);loadStatus(false);
