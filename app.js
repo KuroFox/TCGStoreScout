@@ -82,7 +82,7 @@ $("results").scrollIntoView({behavior:"smooth",block:"start"});
 }catch(e){setStatus("✕ "+(e&&e.message?e.message:"Falló el reconocimiento")+". Puedes reintentar o buscar por nombre/código.");}
 finally{if(worker){try{await Promise.race([worker.terminate(),new Promise(r=>setTimeout(r,1500))]);}catch(e){}}btn.disabled=false;btn.textContent="Identificar carta";}}
 
-function metaTrendMarkup(v){const n=Number(v)||0,cls=n>1?"metaTrendUp":n<-1?"metaTrendDown":"metaTrendFlat",arrow=n>1?"↑":n<-1?"↓":"→";return '<span class="'+cls+'">'+arrow+' '+(n>0?"+":"")+n.toFixed(1)+' pp</span>';}
+function metaTrendMarkup(v){if(v==null||!Number.isFinite(Number(v)))return '<span class="metaTrendFlat">sin comparación</span>';const n=Number(v),cls=n>1?"metaTrendUp":n<-1?"metaTrendDown":"metaTrendFlat",arrow=n>1?"↑":n<-1?"↓":"→";return '<span class="'+cls+'">'+arrow+' '+(n>0?"+":"")+n.toFixed(1)+' pp</span>';}
 async function loadWeeklyMeta(force=false){
   if(state.weeklyMeta&&!force){renderWeeklyMeta(state.weeklyMeta);return;}
   if(state.metaLoading)return;
