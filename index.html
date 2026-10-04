@@ -10,7 +10,7 @@
 <body>
 <div class="app">
   <header class="top">
-    <div class="brand"><div class="logo">TS</div><div><h1>TCG Store Scout</h1><p>Fuente de mercado: TCGplayer</p></div></div>
+    <div class="brand"><div class="logo">TS</div><div><h1>TCG Store Scout</h1><p>Mercado e histórico: TCGplayer</p></div></div>
     <button class="icon" id="settingsBtn" aria-label="Configuración">⚙️</button>
   </header>
 
@@ -18,16 +18,21 @@
 
   <section id="searchSection" class="section active">
     <div class="card hero">
-      <h2>Valora cartas para compra y reventa</h2>
-      <p>Busca por nombre o código, elige la impresión exacta y calcula una oferta objetivo usando el precio de mercado TCGplayer.</p>
+      <h2>Valora una carta antes de comprarla</h2>
+      <p>Identifica la impresión, revisa su precio y entiende si está subiendo o bajando antes de decidir cuánto ofrecer.</p>
+
       <label class="capture">
         <span class="cameraIcon">📷</span><strong>Escanear carta</strong>
-        <small>Foto → OCR → búsqueda en el catálogo TCGplayer</small>
+        <small>Recorte inteligente + OCR de nombre/código + comparación de candidatos</small>
         <input id="cameraInput" type="file" accept="image/*" capture="environment">
       </label>
+      <div class="scanTips">Para mayor precisión: carta completa, buena luz, sin reflejo y ocupando la mayor parte de la foto.</div>
       <div id="photoPanel" class="photoPanel hidden">
-        <img id="photoPreview" alt="Vista previa">
-        <div class="actions"><button class="btn secondary" id="changePhotoBtn">Cambiar</button><button class="btn primary" id="ocrBtn">Leer carta</button></div>
+        <div class="scanPreviewGrid">
+          <div><span>Foto</span><img id="photoPreview" alt="Vista previa"></div>
+          <div><span>Área que analizaré</span><canvas id="scanPreview" width="315" height="440"></canvas></div>
+        </div>
+        <div class="actions"><button class="btn secondary" id="changePhotoBtn">Cambiar</button><button class="btn primary" id="ocrBtn">Identificar carta</button></div>
         <div id="ocrStatus" class="help"></div>
       </div>
     </div>
@@ -70,7 +75,7 @@
       </div>
 
       <div class="market">
-        <small>Valor base para cálculo</small>
+        <small>Valor de mercado ajustado por condición</small>
         <div id="marketPen" class="marketBig">—</div>
         <div id="marketUsd" class="muted"></div>
         <div id="priceBasis" class="basis"></div>
@@ -82,18 +87,37 @@
         <div class="metric"><span>Mid</span><strong id="pMid">—</strong></div>
         <div class="metric"><span>High</span><strong id="pHigh">—</strong></div>
         <div class="metric"><span>Direct Low</span><strong id="pDirect">—</strong></div>
-        <div class="metric"><span>Histórico local</span><strong id="trendLocal">—</strong></div>
+        <div class="metric"><span>Fuente histórica</span><strong id="historySource">—</strong></div>
+      </div>
+
+      <div id="trendPanel" class="trendPanel">
+        <div class="trendHead">
+          <div>
+            <span class="eyebrow">Tendencia de mercado</span>
+            <div id="trendLabel" class="trendLabel neutral">Analizando…</div>
+          </div>
+          <div id="trendConfidence" class="confidenceBadge">—</div>
+        </div>
+        <canvas id="trendChart" width="650" height="190"></canvas>
+        <div class="trendMetrics">
+          <div><span>7 días</span><strong id="trend7">—</strong></div>
+          <div><span>30 días</span><strong id="trend30">—</strong></div>
+          <div><span>Volatilidad</span><strong id="trendVol">—</strong></div>
+          <div><span>Ventas 30d</span><strong id="trendVolume">—</strong></div>
+        </div>
+        <div id="trendExplanation" class="trendExplanation">Estoy buscando el histórico de TCGplayer para explicar si conviene ser agresivo o conservador con la compra.</div>
       </div>
 
       <div class="offer">
         <small>Oferta ideal de compra</small>
         <div id="idealOffer" class="offerBig">—</div>
+        <div id="offerAdjustment" class="offerAdjustment">Aún sin ajuste de tendencia.</div>
         <div class="offerRow"><span>Máximo recomendable</span><b id="maxOffer">—</b></div>
         <div class="offerRow"><span>Ganancia estimada</span><b id="profit">—</b></div>
         <div class="offerRow"><span>ROI estimado</span><b id="roi">—</b></div>
       </div>
 
-      <div class="sourceNote"><b>TCGplayer:</b> Market/Low/Mid/High/Direct Low e impresión. <b>Estimación propia:</b> ajuste por condición, comisiones, riesgo, margen y oferta.</div>
+      <div class="sourceNote"><b>TCGplayer:</b> Market/Low/Mid/High/Direct Low e histórico cuando está disponible. <b>Estimación propia:</b> condición, comisiones, riesgo, margen y ajuste de compra por tendencia.</div>
       <div class="actions"><button class="btn secondary" id="recalcBtn">Recalcular</button><button class="btn primary" id="addLotBtn">+ Añadir al lote</button></div>
     </div>
   </section>
@@ -127,7 +151,7 @@
       <label>Costo fijo S/<input id="fixedInput" type="number" step="0.1"></label>
       <label>Oferta ideal / máximo %<input id="idealPctInput" type="number" step="0.1"></label>
     </div>
-    <p class="help">Los factores de condición son estimaciones configuradas por la tienda: NM 100%, LP 85%, MP 70%, HP 55%, Damaged 35%.</p>
+    <p class="help">La tendencia no reemplaza el margen. Ajusta el máximo de compra dentro de límites conservadores: subidas sostenidas permiten una oferta ligeramente mayor; caídas/volatilidad reducen el máximo.</p>
     <button class="btn primary full" id="saveSettingsBtn">Guardar</button>
   </div>
 </div>
