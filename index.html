@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b1018">\n<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">\n<meta http-equiv="Pragma" content="no-cache">\n<meta http-equiv="Expires" content="0">
 <title>TCG Store Scout</title>
-<link rel="stylesheet" href="style.css?v=2.4.1">
+<link rel="stylesheet" href="style.css?v=3.0.0">
 </head>
 <body>
 <div class="app">
   <header class="top">
-    <div class="brand"><div class="logo">TS</div><div><h1>TCG Store Scout</h1><p>Pokémon Buy Desk · build 2.4.1</p></div></div>
+    <div class="brand"><div class="logo">TS</div><div><h1>TCG Store Scout</h1><p>Pokémon Store Assistant · build 3.0.0</p></div></div>
     <button class="icon" id="settingsBtn" aria-label="Configuración">⚙️</button>
   </header>
 
@@ -142,30 +142,30 @@
   <section id="metaSection" class="section">
     <div class="card metaHero">
       <span class="eyebrow">Radar semanal de tienda</span>
-      <h2>🔥 Meta Pokémon · últimos 7 días</h2>
+      <h2>🔥 Qué vender esta semana</h2>
       <p id="metaUpdated" class="help">Cargando torneos y decklists recientes…</p>
       <div class="metaStats">
         <div><span>Decklists</span><strong id="metaDecklists">—</strong></div>
         <div><span>Torneos</span><strong id="metaEvents">—</strong></div>
         <div><span>Ventana</span><strong>7 días</strong></div>
       </div>
-      <div class="metaNotice">Este radar mide <b>demanda competitiva</b>: qué cartas necesitan los jugadores para construir los decks actuales. No equivale todavía a ventas verificadas de tienda.</div>
+      <div class="metaNotice">Cruza el meta competitivo con precios TCGplayer para mostrar qué decks y cartas generan una oportunidad real de stock. La demanda competitiva no se presenta como venta confirmada.</div>
     </div>
 
     <div class="card">
       <div class="metaSectionHead">
-        <div><span class="eyebrow">Metagame actual</span><h2>Decks del momento</h2></div>
+        <div><span class="eyebrow">Demanda por construcción</span><h2>Decks que los clientes quieren armar</h2></div>
         <span class="confidenceBadge">Standard</span>
       </div>
-      <p class="help">Ordenados por presencia en las decklists públicas de los últimos 7 días.</p>
+      <p class="help">Abre cualquier deck para ver una lista real de 60 cartas, imágenes, cantidades y costo aproximado en singles.</p>
       <div id="metaDecksList" class="metaList"><div class="spin"></div></div>
     </div>
 
     <div class="card">
       <div class="metaSectionHead">
-        <div><span class="eyebrow">Proxy de demanda de compra</span><h2>Cartas más buscadas por el meta</h2></div>
+        <div><span class="eyebrow">Acción de tienda</span><h2>Cartas que conviene tener en stock</h2></div>
       </div>
-      <p class="help">Priorizo presencia × copias por mazo. Una carta usada como 4-of recibe más peso que una tech de 1 copia.</p>
+      <p class="help">Priorizo presencia × copias por mazo y muestro su precio para que el vendedor pueda decidir qué reponer primero.</p>
       <div id="metaCardsList" class="metaList"><div class="spin"></div></div>
       <div class="sourceNote"><b>Cómo leerlo:</b> “Copias / 100 decks” aproxima cuántas copias físicas necesitarían 100 jugadores si construyeran el meta observado. Es una señal de demanda competitiva, no un conteo de compras reales.</div>
     </div>
@@ -190,6 +190,29 @@
   <button class="navBtn" data-target="statusSection">ℹ️<br>Estado</button>
 </nav>
 
+<div id="deckModal" class="modal">
+  <div class="sheet deckSheet">
+    <div class="sheetHead">
+      <div><span class="eyebrow">Deck meta · oportunidad de venta</span><h3 id="deckModalTitle">Deck</h3></div>
+      <button class="icon" id="closeDeckBtn">✕</button>
+    </div>
+    <div id="deckModalMeta" class="help"></div>
+    <div class="deckBusinessSummary">
+      <div><span>Retail aproximado</span><strong id="deckRetail">Calculando…</strong></div>
+      <div><span>Cartas resueltas</span><strong id="deckResolved">—</strong></div>
+      <div><span>Stock prioritario</span><strong id="deckPriority">—</strong></div>
+    </div>
+    <div id="deckSellAdvice" class="metaNotice">Resolviendo precios e imágenes para convertir este deck en una guía de venta.</div>
+    <div class="actions deckActions">
+      <button class="btn secondary" id="copyDeckBtn">Copiar decklist</button>
+      <button class="btn primary" id="shareDeckBtn">Compartir</button>
+    </div>
+    <div id="deckPokemonBlock" class="deckCategory"><h4>Pokémon</h4><div id="deckPokemon" class="deckGrid"></div></div>
+    <div id="deckTrainerBlock" class="deckCategory"><h4>Entrenadores</h4><div id="deckTrainer" class="deckGrid"></div></div>
+    <div id="deckEnergyBlock" class="deckCategory"><h4>Energía</h4><div id="deckEnergy" class="deckGrid"></div></div>
+  </div>
+</div>
+
 <div id="settingsModal" class="modal">
   <div class="sheet">
     <div class="sheetHead"><h3>Configuración de compra</h3><button class="icon" id="closeSettingsBtn">✕</button></div>
@@ -206,6 +229,6 @@
   </div>
 </div>
 <div id="toast" class="toast"></div>
-<script src="app.js?v=2.4.1"></script>
+<script src="app.js?v=3.0.0"></script>
 </body>
 </html>
