@@ -1,6 +1,6 @@
 const GAMES={"1":"Magic: The Gathering","2":"Yu-Gi-Oh!","3":"Pokémon","63":"Digimon Card Game","68":"One Piece Card Game","71":"Disney Lorcana"};
 const DEFAULTS={fx:3.75,fees:12,margin:25,risk:6,fixed:2,idealPct:90,cond:{NM:100,LP:85,MP:70,HP:55,DMG:35}};
-const state={status:null,current:null,currentCat:null,lot:[],photo:null,scanCanvas:null,settings:Object.assign({},DEFAULTS),trend:null,competitive:null,weeklyMeta:null,metaLoading:false};
+const state={status:null,current:null,currentCat:null,lot:[],photo:null,scanCanvas:null,settings:Object.assign({},DEFAULTS),trend:null,competitive:null,weeklyMeta:null,metaLoading:false,currentDeck:null,metaCardCache:new Map()};
 const $=id=>document.getElementById(id);
 function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function norm(v){return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/&/g," and ").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");}
@@ -83,6 +83,31 @@ $("results").scrollIntoView({behavior:"smooth",block:"start"});
 finally{if(worker){try{await Promise.race([worker.terminate(),new Promise(r=>setTimeout(r,1500))]);}catch(e){}}btn.disabled=false;btn.textContent="Identificar carta";}}
 
 function metaTrendMarkup(v){if(v==null||!Number.isFinite(Number(v)))return '<span class="metaTrendFlat">sin comparación</span>';const n=Number(v),cls=n>1?"metaTrendUp":n<-1?"metaTrendDown":"metaTrendFlat",arrow=n>1?"↑":n<-1?"↓":"→";return '<span class="'+cls+'">'+arrow+' '+(n>0?"+":"")+n.toFixed(1)+' pp</span>';}
+function playableMarket(x){const vals=(x&&x.p||[]).map(r=>Number(r[1]??r[3]??r[2])||0).filter(v=>v>0);return vals.length?Math.min(...vals):0;}
+function metaDemandFor(card){const list=state.weeklyMeta&&Array.isArray(state.weeklyMeta.topCards)?state.weeklyMeta.topCards:[];const n=norm(card.name),num=compact(card.number),set=norm(card.set);return list.find(x=>norm(x.name)===n&&(!num||compact(x.number)===num)&&(!set||!x.set||norm(x.set)===set))||list.find(x=>norm(x.name)===n)||null;}
+function stockPriority(card){const d=metaDemandFor(card);if(!d)return{level:"low",label:"Demanda sin medir"};const pressure=Number(d.copiesPer100Decks)||0;if(pressure>=150||Number(d.usage)>=65)return{level:"high",label:"Reponer primero"};if(pressure>=60||Number(d.usage)>=30)return{level:"medium",label:"Stock recomendado"};return{level:"low",label:"Stock normal"};}
+async function resolveMetaCard(card){
+  const key=norm(card.name)+"|"+compact(card.number)+"|"+norm(card.set);
+  if(state.metaCardCache.has(key))return state.metaCardCache.get(key);
+  const q=(card.name+" "+(card.number||"")).trim();
+  let result={image:"",market:0,product:null};
+  try{
+    const {arr}=await queryCatalog(q,["3"],30);
+    const exactName=arr.filter(x=>norm(x.n)===norm(card.name));
+    let candidates=exactName.length?exactName:arr;
+    if(card.number){
+      const num=compact(card.number);
+      const byNumber=candidates.filter(x=>compact(x.c).includes(num)||num.includes(compact(x.c)));
+      if(byNumber.length)candidates=byNumber;
+    }
+    const priced=candidates.filter(x=>playableMarket(x)>0).sort((a,b)=>playableMarket(a)-playableMarket(b));
+    const chosen=priced[0]||candidates[0]||null;
+    if(chosen)result={image:chosen.m||"",market:playableMarket(chosen),product:chosen};
+  }catch(e){}
+  state.metaCardCache.set(key,result);
+  return result;
+}
+async function runBatches(items,fn,size=5){const out=[];for(let i=0;i<items.length;i+=size){const part=items.slice(i,i+size);out.push(...await Promise.all(part.map(fn)));}return out;}
 async function loadWeeklyMeta(force=false){
   if(state.weeklyMeta&&!force){renderWeeklyMeta(state.weeklyMeta);return;}
   if(state.metaLoading)return;
@@ -112,26 +137,50 @@ function renderWeeklyMeta(m){
   $("metaDecksList").innerHTML=decks.length?decks.slice(0,12).map((x,i)=>
     '<div class="metaItem"><div class="metaRank">#'+(i+1)+'</div><div><h4>'+esc(x.name)+'</h4>'+
     '<div class="metaSub">'+Number(x.decks||0)+' listas · '+Number(x.events||0)+' torneos · mejor puesto '+(x.best||"—")+'</div>'+
-    '<div class="metaBadges"><span class="metaBadge">Meta '+Number(x.share||0).toFixed(1)+'%</span><span class="metaBadge">Win '+Number(x.winRate||0).toFixed(1)+'%</span><span class="metaBadge">Top 8 '+Number(x.top8||0)+'</span><span class="metaBadge">'+metaTrendMarkup(x.trendPP)+'</span></div></div></div>'
+    '<div class="metaBadges"><span class="metaBadge">Meta '+Number(x.share||0).toFixed(1)+'%</span><span class="metaBadge">Win '+Number(x.winRate||0).toFixed(1)+'%</span><span class="metaBadge">Top 8 '+Number(x.top8||0)+'</span><span class="metaBadge">'+metaTrendMarkup(x.trendPP)+'</span></div></div>'+
+    '<button class="metaAnalyze" data-deck-i="'+i+'">'+(x.sample?"Ver deck":"Sin lista")+'</button></div>'
   ).join(""):'<div class="empty">No hay suficientes decklists de esta semana.</div>';
+  document.querySelectorAll("[data-deck-i]").forEach(b=>b.addEventListener("click",()=>showMetaDeck(Number(b.dataset.deckI))));
 
   const cards=Array.isArray(m.topCards)?m.topCards:[];
-  $("metaCardsList").innerHTML=cards.length?cards.slice(0,25).map((x,i)=>{
+  const visible=cards.slice(0,18);
+  $("metaCardsList").innerHTML=visible.length?visible.map((x,i)=>{
     const code=[x.set,x.number].filter(Boolean).join(" ");
-    const q=(x.name+" "+(x.number||"")).trim();
+    const q=(x.name+" "+(x.number||"")).trim(),prio=stockPriority(x);
     const arches=(x.archetypes||[]).slice(0,2).map(a=>a.name).join(" · ");
-    return '<div class="metaItem"><div class="metaRank">#'+(i+1)+'</div><div><h4>'+esc(x.name)+'</h4>'+
+    return '<div class="metaItem visualCard"><div class="metaRank">#'+(i+1)+'</div><img class="metaThumb" id="metaImg'+i+'" alt=""><div><h4>'+esc(x.name)+'</h4>'+
       '<div class="metaSub">'+esc(code)+(arches?' · '+esc(arches):'')+'</div>'+
-      '<div class="metaBadges"><span class="metaBadge">Uso '+Number(x.usage||0).toFixed(1)+'%</span><span class="metaBadge">'+Number(x.avgCopies||0).toFixed(1)+' copias/mazo</span><span class="metaBadge">'+Number(x.copiesPer100Decks||0).toFixed(0)+' copias / 100 decks</span><span class="metaBadge">'+metaTrendMarkup(x.trendPP)+'</span></div></div>'+
+      '<div class="metaPrice" id="metaPrice'+i+'">Precio…</div><span class="storeAction '+prio.level+'">'+prio.label+'</span>'+
+      '<div class="metaBadges"><span class="metaBadge">Uso '+Number(x.usage||0).toFixed(1)+'%</span><span class="metaBadge">'+Number(x.avgCopies||0).toFixed(1)+' copias/mazo</span><span class="metaBadge">'+Number(x.copiesPer100Decks||0).toFixed(0)+' /100 decks</span><span class="metaBadge">'+metaTrendMarkup(x.trendPP)+'</span></div></div>'+
       '<button class="metaAnalyze" data-meta-q="'+esc(q)+'">Analizar</button></div>';
   }).join(""):'<div class="empty">No hay suficientes cartas para construir el ranking semanal.</div>';
-  document.querySelectorAll("[data-meta-q]").forEach(b=>b.addEventListener("click",()=>{
-    $("gameSelect").value="3";
-    $("queryInput").value=b.dataset.metaQ||"";
-    switchSection("searchSection");
-    searchCards();
-  }));
+  document.querySelectorAll("[data-meta-q]").forEach(b=>b.addEventListener("click",()=>analyzeMetaQuery(b.dataset.metaQ||"")));
+  hydrateWeeklyCards(visible);
 }
+async function hydrateWeeklyCards(cards){
+  await runBatches(cards,async(card,i)=>{const info=await resolveMetaCard(card);return info;},6).then(results=>{
+    results.forEach((info,i)=>{const img=$("metaImg"+i),p=$("metaPrice"+i);if(img&&info&&info.image)img.src=info.image;if(p)p.textContent=info&&info.market?usd(info.market)+" TCGplayer":"Precio no resuelto";});
+  }).catch(()=>{});
+}
+function analyzeMetaQuery(q){$("gameSelect").value="3";$("queryInput").value=q;switchSection("searchSection");searchCards();}
+function deckText(sample){if(!sample||!sample.cards)return"";const labels={pokemon:"Pokémon",trainer:"Entrenadores",energy:"Energía"},parts=[];for(const cat of ["pokemon","trainer","energy"]){const arr=sample.cards[cat]||[];if(!arr.length)continue;parts.push(labels[cat]+" ("+arr.reduce((a,x)=>a+Number(x.count||0),0)+")");arr.forEach(x=>parts.push(Number(x.count||1)+" "+x.name+([x.set,x.number].filter(Boolean).length?" "+[x.set,x.number].filter(Boolean).join(" "):"")));parts.push("");}return parts.join("\n").trim();}
+function showMetaDeck(i){const deck=state.weeklyMeta&&state.weeklyMeta.topDecks&&state.weeklyMeta.topDecks[i];if(!deck||!deck.sample){toast("No hay decklist pública para esta muestra");return;}state.currentDeck=deck;$("deckModalTitle").textContent=deck.name;$("deckModalMeta").textContent="Lista representativa: "+(deck.sample.player||"jugador")+" · puesto #"+(deck.sample.placing||"—")+" · "+(deck.sample.tournament||"torneo reciente")+" · Meta "+Number(deck.share||0).toFixed(1)+"%";$("deckRetail").textContent="Calculando…";$("deckResolved").textContent="—";$("deckPriority").textContent="—";$("deckSellAdvice").textContent="Resolviendo imágenes y precios TCGplayer para convertir esta lista en una guía de venta.";$("deckModal").classList.add("open");renderDeckCategory("pokemon",deck.sample.cards.pokemon||[]);renderDeckCategory("trainer",deck.sample.cards.trainer||[]);renderDeckCategory("energy",deck.sample.cards.energy||[]);hydrateDeck(deck);}
+function renderDeckCategory(cat,cards){const target=cat==="pokemon"?"deckPokemon":cat==="trainer"?"deckTrainer":"deckEnergy",block=cat==="pokemon"?"deckPokemonBlock":cat==="trainer"?"deckTrainerBlock":"deckEnergyBlock";$(block).classList.toggle("hidden",!cards.length);$(target).innerHTML=cards.map((x,i)=>'<div class="deckCard" id="deckCard_'+cat+'_'+i+'"><div class="deckQty">'+Number(x.count||1)+'×</div><div class="deckCardBody"><div class="deckCardName">'+esc(x.name)+'</div><div class="deckCardMeta">'+esc([x.set,x.number].filter(Boolean).join(" "))+'</div><div class="deckCardPrice">Resolviendo…</div></div></div>').join("");}
+async function hydrateDeck(deck){const all=[];for(const cat of ["pokemon","trainer","energy"])(deck.sample.cards[cat]||[]).forEach((card,i)=>all.push({cat,i,card}));let total=0,resolved=0,priority=0;const infos=await runBatches(all,async item=>({item,info:await resolveMetaCard(item.card)}),5);for(const {item,info} of infos){const el=$("deckCard_"+item.cat+"_"+item.i);if(!el)continue;const p=stockPriority(item.card);if(p.level==="high")priority++;if(info&&info.market){resolved++;total+=info.market*Number(item.card.count||1);}el.innerHTML='<div class="deckQty">'+Number(item.card.count||1)+'×</div>'+(p.level==="high"?'<div class="deckPriorityBadge">REPÓN</div>':'')+(info&&info.image?'<img src="'+esc(info.image)+'" alt="">':'<div style="aspect-ratio:2.5/3.5;background:#111927"></div>')+'<div class="deckCardBody"><div class="deckCardName">'+esc(item.card.name)+'</div><div class="deckCardMeta">'+esc([item.card.set,item.card.number].filter(Boolean).join(" "))+' · '+p.label+'</div><div class="deckCardPrice">'+(info&&info.market?usd(info.market):"sin precio")+'</div></div><button data-deck-q="'+esc((item.card.name+" "+(item.card.number||"")).trim())+'">Analizar carta</button>';}
+  document.querySelectorAll("[data-deck-q]").forEach(b=>b.addEventListener("click",()=>{$("deckModal").classList.remove("open");analyzeMetaQuery(b.dataset.deckQ||"");}));
+  $("deckRetail").textContent=resolved?usd(total):"No resuelto";$("deckResolved").textContent=resolved+"/"+all.length;$("deckPriority").textContent=priority+" cartas";
+  const share=Number(deck.share||0),wr=Number(deck.winRate||0);let advice=priority?"Este deck contiene "+priority+" cartas con presión de demanda alta. Tener esas singles visibles y disponibles puede captar a jugadores que están armando el arquetipo.":"La lista no tiene muchas cartas de presión alta; conviene venderla como core/deck completo antes que sobrecargar stock individual.";
+  if(share>=8)advice+=" Es uno de los decks con mayor presencia de la semana.";
+  if(wr>=52)advice+=" Además está rindiendo por encima de la media.";
+  if(resolved)advice+=" El costo retail aproximado de esta impresión competitiva es "+usd(total)+" antes de envío/comisiones.";
+  $("deckSellAdvice").textContent=advice;
+}
+async function copyCurrentDeck(){if(!state.currentDeck||!state.currentDeck.sample)return;const txt=deckText(state.currentDeck.sample);try{await navigator.clipboard.writeText(txt);toast("Decklist copiada");}catch(e){toast("No pude copiar la lista");}}
+async function shareCurrentDeck(){if(!state.currentDeck||!state.currentDeck.sample)return;const txt=state.currentDeck.name+"\n\n"+deckText(state.currentDeck.sample);try{if(navigator.share)await navigator.share({title:"Deck "+state.currentDeck.name,text:txt});else{await navigator.clipboard.writeText(txt);toast("Decklist copiada");}}catch(e){}}
 
+$("closeDeckBtn").addEventListener("click",()=>$("deckModal").classList.remove("open"));
+$("deckModal").addEventListener("click",e=>{if(e.target.id==="deckModal")$("deckModal").classList.remove("open");});
+$("copyDeckBtn").addEventListener("click",copyCurrentDeck);
+$("shareDeckBtn").addEventListener("click",shareCurrentDeck);
 $("searchBtn").addEventListener("click",searchCards);$("queryInput").addEventListener("keydown",e=>{if(e.key==="Enter")searchCards();});$("variantSelect").addEventListener("change",()=>{state.trend=null;renderCurrent();loadTrendForCurrent();});$("conditionSelect").addEventListener("change",renderCurrent);$("recalcBtn").addEventListener("click",renderCurrent);$("addLotBtn").addEventListener("click",addLot);$("cameraInput").addEventListener("change",photoChanged);$("changePhotoBtn").addEventListener("click",resetPhoto);$("ocrBtn").addEventListener("click",runOCR);$("clearLotBtn").addEventListener("click",clearLot);$("shareLotBtn").addEventListener("click",shareLot);$("refreshStatusBtn").addEventListener("click",()=>loadStatus(true));$("settingsBtn").addEventListener("click",()=>{$("settingsModal").classList.add("open");syncSettings();});$("closeSettingsBtn").addEventListener("click",()=>$("settingsModal").classList.remove("open"));$("saveSettingsBtn").addEventListener("click",saveSettings);$("settingsModal").addEventListener("click",e=>{if(e.target.id==="settingsModal")$("settingsModal").classList.remove("open");});document.querySelectorAll(".navBtn").forEach(b=>b.addEventListener("click",()=>switchSection(b.dataset.target)));
 loadLocal();renderTrend(null);loadStatus(false);
