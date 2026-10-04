@@ -119,7 +119,7 @@ def main():
     }
     event_summaries = []
     week_events = set()
-    week_arch = defaultdict(lambda: {"decks": 0, "wins": 0, "losses": 0, "ties": 0, "top32": 0, "top8": 0, "best": 999999, "events": set()})
+    week_arch = defaultdict(lambda: {"decks": 0, "wins": 0, "losses": 0, "ties": 0, "top32": 0, "top8": 0, "best": 999999, "events": set(), "sample": None})
     prev_arch = Counter()
     week_exact = defaultdict(lambda: {"name": "", "set": "", "number": "", "category": "", "decks": 0, "copies": 0, "top32": 0, "top8": 0, "events": set(), "archetypes": Counter()})
     prev_exact = Counter()
@@ -177,6 +177,22 @@ def main():
                 wa["ties"] += int(rec.get("ties") or 0)
                 if placing <= 32: wa["top32"] += 1
                 if placing <= 8: wa["top8"] += 1
+                if placing < wa["best"]:
+                    sample_cards = {}
+                    for cat in ("pokemon", "trainer", "energy"):
+                        sample_cards[cat] = [{
+                            "name": str(card.get("name") or "").strip(),
+                            "set": str(card.get("set") or "").strip(),
+                            "number": str(card.get("number") or "").strip(),
+                            "count": int(card.get("count") or 1),
+                        } for card in (dl.get(cat) or []) if isinstance(card, dict) and card.get("name")]
+                    wa["sample"] = {
+                        "player": str(row.get("name") or row.get("player") or ""),
+                        "placing": placing,
+                        "tournament": str(t.get("name") or ""),
+                        "tournamentId": tid,
+                        "cards": sample_cards,
+                    }
                 wa["best"] = min(wa["best"], placing)
                 wa["events"].add(tid)
             elif previous7 <= dt < recent7 and archetype != "Sin clasificar":
@@ -332,6 +348,7 @@ def main():
             "top8": a["top8"],
             "best": a["best"] if a["best"] < 999999 else None,
             "events": len(a["events"]),
+            "sample": a["sample"],
         })
     weekly_decks.sort(key=lambda x: (-x["share"], -x["winRate"], x["name"]))
 
