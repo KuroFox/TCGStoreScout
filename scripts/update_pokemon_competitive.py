@@ -86,7 +86,17 @@ def main():
     prior30 = now - timedelta(days=30)
     previous7 = now - timedelta(days=14)
 
-    tournaments = fetch_json(s, f"{BASE}/tournaments?game=PTCG&format=STANDARD&limit=50&page=1")
+    tournaments = []
+    # Pull multiple pages so the seven-day sample also has a real previous-week baseline.
+    for page in range(1, 4):
+        batch = fetch_json(s, f"{BASE}/tournaments?game=PTCG&format=STANDARD&limit=50&page={page}")
+        if not batch:
+            break
+        tournaments.extend(batch)
+        if len(batch) < 50:
+            break
+        time.sleep(args.pace)
+
     candidates = []
     for t in tournaments:
         try:
@@ -351,7 +361,7 @@ def main():
             "archetypes": [{"name": n, "decks": d} for n, d in a["archetypes"].most_common(4)],
         })
     # Copies per 100 meta decks is the best tournament proxy for physical demand.
-    weekly_cards.sort(key=lambda x: (-x["copiesPer100Decks"], -x["top32Usage"], -x["trendPP"], x["name"]))
+    weekly_cards.sort(key=lambda x: (-x["copiesPer100Decks"], -x["top32Usage"], -(x["trendPP"] or 0), x["name"]))
 
     weekly = {
         "builtAt": now.isoformat(),
