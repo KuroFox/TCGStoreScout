@@ -12,15 +12,20 @@ def fail(msg):
     print("FAIL:", msg)
     sys.exit(1)
 
-# 1) JavaScript must parse in the same JS runtime family used by the browser.
+# 1) JavaScript and data builders must parse before any network-heavy build starts.
 subprocess.run(["node", "--check", str(root / "app.js")], check=True)
+subprocess.run([
+    sys.executable, "-m", "py_compile",
+    str(root / "scripts" / "update_tcgplayer.py"),
+    str(root / "scripts" / "update_pokemon_competitive.py"),
+], check=True)
 
 # 2) DOM ids must be unique and every $("id") reference must exist.
 ids = re.findall(r'id="([^"]+)"', html)
 if len(ids) != len(set(ids)):
     dupes = sorted({x for x in ids if ids.count(x) > 1})
     fail(f"duplicate ids: {dupes}")
-refs = re.findall(r'$("([^"]+)")', js)
+refs = re.findall(r'\$\("([^"]+)"\)', js)
 missing = sorted(set(refs) - set(ids))
 if missing:
     fail(f"missing DOM ids: {missing}")
