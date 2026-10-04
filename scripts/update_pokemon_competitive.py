@@ -84,6 +84,7 @@ def main():
     cutoff = now - timedelta(days=args.days)
     recent7 = now - timedelta(days=7)
     prior30 = now - timedelta(days=30)
+    previous7 = now - timedelta(days=14)
 
     tournaments = fetch_json(s, f"{BASE}/tournaments?game=PTCG&format=STANDARD&limit=50&page=1")
     candidates = []
@@ -101,8 +102,17 @@ def main():
     candidates = candidates[:args.events]
 
     by_name = {}
-    total = {"all": 0, "top32": 0, "top8": 0, "recent7": 0, "prior30": 0}
+    total = {
+        "all": 0, "top32": 0, "top8": 0,
+        "recent7": 0, "recent7Top32": 0, "recent7Top8": 0,
+        "prev7": 0, "prior30": 0
+    }
     event_summaries = []
+    week_events = set()
+    week_arch = defaultdict(lambda: {"decks": 0, "wins": 0, "losses": 0, "ties": 0, "top32": 0, "top8": 0, "best": 999999, "events": set()})
+    prev_arch = Counter()
+    week_exact = defaultdict(lambda: {"name": "", "set": "", "number": "", "category": "", "decks": 0, "copies": 0, "top32": 0, "top8": 0, "events": set(), "archetypes": Counter()})
+    prev_exact = Counter()
 
     for idx, (dt, t) in enumerate(candidates, 1):
         if idx > 1:
@@ -139,12 +149,32 @@ def main():
                 event_top8 += 1
             if dt >= recent7:
                 total["recent7"] += 1
-            elif dt >= prior30:
+                week_events.add(tid)
+                if placing <= 32: total["recent7Top32"] += 1
+                if placing <= 8: total["recent7Top8"] += 1
+            if previous7 <= dt < recent7:
+                total["prev7"] += 1
+            if prior30 <= dt < recent7:
                 total["prior30"] += 1
 
             archetype = ((row.get("deck") or {}).get("name") or "Sin clasificar").strip()
-            # De-duplicate per list: a card should count as one deck inclusion even if malformed twice.
+            if dt >= recent7 and archetype != "Sin clasificar":
+                rec = row.get("record") or {}
+                wa = week_arch[archetype]
+                wa["decks"] += 1
+                wa["wins"] += int(rec.get("wins") or 0)
+                wa["losses"] += int(rec.get("losses") or 0)
+                wa["ties"] += int(rec.get("ties") or 0)
+                if placing <= 32: wa["top32"] += 1
+                if placing <= 8: wa["top8"] += 1
+                wa["best"] = min(wa["best"], placing)
+                wa["events"].add(tid)
+            elif previous7 <= dt < recent7 and archetype != "Sin clasificar":
+                prev_arch[archetype] += 1
+
+            # Two views: by functional name, and by exact set+number printing.
             per_list = {}
+            exact_in_list = {}
             for cat, c in cards:
                 name = str(c.get("name") or "").strip()
                 set_code = str(c.get("set") or "").strip()
@@ -161,6 +191,33 @@ def main():
                     }
                 else:
                     cur["copies"] += copies
+
+                ek = (k, set_code, number)
+                ecur = exact_in_list.get(ek)
+                if ecur is None:
+                    exact_in_list[ek] = {
+                        "name": name, "set": set_code, "number": number,
+                        "copies": copies, "category": cat
+                    }
+                else:
+                    ecur["copies"] += copies
+
+            if dt >= recent7:
+                for ek, ec in exact_in_list.items():
+                    ex = week_exact[ek]
+                    ex["name"] = ec["name"]
+                    ex["set"] = ec["set"]
+                    ex["number"] = ec["number"]
+                    ex["category"] = ec["category"]
+                    ex["decks"] += 1
+                    ex["copies"] += ec["copies"]
+                    if placing <= 32: ex["top32"] += 1
+                    if placing <= 8: ex["top8"] += 1
+                    ex["events"].add(tid)
+                    ex["archetypes"][archetype] += 1
+            elif previous7 <= dt < recent7:
+                for ek in exact_in_list:
+                    prev_exact[ek] += 1
 
             for nk, c in per_list.items():
                 agg = by_name.setdefault(nk, {
@@ -246,6 +303,70 @@ def main():
     for k, vals in shards.items():
         vals.sort(key=lambda x: (-x["score"], -x["decks"], x["n"]))
         write_json(out / "name" / f"{k}.json", vals)
+
+    # Seven-day meta radar for the store: decks and exact card printings.
+    weekly_decks = []
+    for name, a in week_arch.items():
+        share = (a["decks"] / total["recent7"] * 100) if total["recent7"] else 0
+        prev_share = (prev_arch[name] / total["prev7"] * 100) if total["prev7"] else 0
+        matches = a["wins"] + a["losses"] + a["ties"]
+        win_rate = (a["wins"] / matches * 100) if matches else 0
+        weekly_decks.append({
+            "name": name,
+            "decks": a["decks"],
+            "share": round(share, 2),
+            "prevShare": round(prev_share, 2),
+            "trendPP": round(share - prev_share, 2),
+            "winRate": round(win_rate, 1),
+            "top32": a["top32"],
+            "top8": a["top8"],
+            "best": a["best"] if a["best"] < 999999 else None,
+            "events": len(a["events"]),
+        })
+    weekly_decks.sort(key=lambda x: (-x["share"], -x["winRate"], x["name"]))
+
+    weekly_cards = []
+    for ek, a in week_exact.items():
+        if a["category"] == "energy":
+            continue
+        usage = (a["decks"] / total["recent7"] * 100) if total["recent7"] else 0
+        prev_usage = (prev_exact[ek] / total["prev7"] * 100) if total["prev7"] else 0
+        avg_copies = (a["copies"] / a["decks"]) if a["decks"] else 0
+        copies_per_100 = (a["copies"] / total["recent7"] * 100) if total["recent7"] else 0
+        top32_usage = (a["top32"] / total["recent7Top32"] * 100) if total["recent7Top32"] else 0
+        weekly_cards.append({
+            "name": a["name"],
+            "set": a["set"],
+            "number": a["number"],
+            "category": a["category"],
+            "decks": a["decks"],
+            "usage": round(usage, 2),
+            "prevUsage": round(prev_usage, 2),
+            "trendPP": round(usage - prev_usage, 2),
+            "avgCopies": round(avg_copies, 2),
+            "copiesPer100Decks": round(copies_per_100, 1),
+            "top32Usage": round(top32_usage, 2),
+            "top8": a["top8"],
+            "events": len(a["events"]),
+            "archetypes": [{"name": n, "decks": d} for n, d in a["archetypes"].most_common(4)],
+        })
+    # Copies per 100 meta decks is the best tournament proxy for physical demand.
+    weekly_cards.sort(key=lambda x: (-x["copiesPer100Decks"], -x["top32Usage"], -x["trendPP"], x["name"]))
+
+    weekly = {
+        "builtAt": now.isoformat(),
+        "source": "Limitless Tournament Platform",
+        "game": "Pokémon TCG",
+        "format": "STANDARD",
+        "windowDays": 7,
+        "eventsAnalyzed": len(week_events),
+        "decklistsAnalyzed": total["recent7"],
+        "previousWeekDecklists": total["prev7"],
+        "topDecks": weekly_decks[:15],
+        "topCards": weekly_cards[:40],
+        "note": "Tournament usage is a competitive-demand proxy, not verified retail purchase volume."
+    }
+    write_json(out / "weekly.json", weekly)
 
     status = {
         "builtAt": now.isoformat(),
