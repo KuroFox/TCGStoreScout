@@ -41,6 +41,9 @@ jobs:
       - name: Build current TCGplayer snapshot
         run: python scripts/update_tcgplayer.py --output _site/data
 
+      - name: Build Pokémon competitive demand snapshot
+        run: python scripts/update_pokemon_competitive.py --output _site/data/competitive/pokemon --days 45 --events 18 --min-players 32
+
       - name: Copy frontend
         run: |
           cp index.html _site/index.html
