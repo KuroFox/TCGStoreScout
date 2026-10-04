@@ -39,7 +39,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Build current TCGplayer snapshot
-        run: python scripts/update_tcgplayer.py --output _site/data
+        run: python scripts/update_tcgplayer.py --output _site/data --games 3
 
       - name: Build Pokémon competitive demand snapshot
         run: python scripts/update_pokemon_competitive.py --output _site/data/competitive/pokemon --days 45 --events 18 --min-players 32
